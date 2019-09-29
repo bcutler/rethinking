@@ -76,8 +76,8 @@ samples %>%
     select(mu, sigma) %>%
     gather() %>%
     ggplot(aes(value)) +
-    geom_density(fill = '#333333') + 
-    facet_wrap(~key, scales = 'free') 
+        geom_density(fill = '#333333') + 
+        facet_wrap(~key, scales = 'free') 
 
 # Compute posterior modes and 95% HPDIs
 samples %>%
@@ -169,11 +169,7 @@ b4_4 <- brm(
             prior(normal(0, 10), class = b),
             prior(cauchy(0, 1), class = sigma)
         ),
-        iter = 41000,
-        warmup = 40000,
-        chains = 4,
-        cores = 4,
-        seed = 4
+        iter = 41000, warmup = 40000, chains = 4, cores = 4, seed = 4
     )
 
 # Interpretation
@@ -217,3 +213,189 @@ b_10 <- run_model(dat2, n = 10)
 b_50 <- run_model(dat2, n = 50)
 b_150 <- run_model(dat2, n = 150)
 b_352 <- run_model(dat2, n = 352)
+
+# Put chains into data frames
+post10 <- posterior_samples(b_10)
+post50 <- posterior_samples(b_50)
+post150 <- posterior_samples(b_150)
+post352 <- posterior_samples(b_352)
+
+# Function to plot data
+plot_b <- function(df, samples, n) {
+    df %>%
+        slice(1:n) %>%
+        ggplot(aes(weight, height)) +
+            geom_abline(
+                intercept = samples[1:20, 1],
+                slope = samples[1:20, 2],
+                size = 1/3,
+                alpha = 1/3
+            ) +
+            geom_point() +
+            coord_cartesian(
+                xlim = range(df$weight),
+                ylim = range(df$height)
+            ) +
+            theme(panel.grid = element_blank())
+}
+
+p10 <- plot_b(dat2, post10, 10)
+p50 <- plot_b(dat2, post50, 50)
+p150 <- plot_b(dat2, post150, 150)
+p352 <- plot_b(dat2, post352, 352)
+
+# Multiplot
+multiplot <- function(..., plotlist=NULL, file, cols=1, layout=NULL) {
+  library(grid)
+  
+  # Make a list from the ... arguments and plotlist
+  plots <- c(list(...), plotlist)
+  
+  numPlots = length(plots)
+  
+  # If layout is NULL, then use 'cols' to determine layout
+  if (is.null(layout)) {
+    # Make the panel
+    # ncol: Number of columns of plots
+    # nrow: Number of rows needed, calculated from # of cols
+    layout <- matrix(seq(1, cols * ceiling(numPlots/cols)),
+                     ncol = cols, nrow = ceiling(numPlots/cols))
+  }
+  
+  if (numPlots==1) {
+    print(plots[[1]])
+    
+  } else {
+    # Set up the page
+    grid.newpage()
+    pushViewport(viewport(layout = grid.layout(nrow(layout), ncol(layout))))
+    
+    # Make each plot, in the correct location
+    for (i in 1:numPlots) {
+      # Get the i,j matrix positions of the regions that contain this subplot
+      matchidx <- as.data.frame(which(layout == i, arr.ind = TRUE))
+      
+        print(plots[[i]], vp = viewport(
+            layout.pos.row = matchidx$row, 
+            layout.pos.col = matchidx$col
+        ))
+    }
+  }
+}
+
+multiplot(p10, p50, p150, p352, cols = 2)
+
+# Plotting regression intervals and contours
+mu_at_50 <- post %>%
+    transmute(mu_at_50 = b_Intercept + b_weight * 50)
+
+# Plot it
+mu_at_50 %>%
+    ggplot(aes(mu_at_50)) +
+        geom_density(fill = '#333333') +
+        labs(
+            x = 'Mean Height | weight = 50'
+        )
+
+# Get HPDI 
+mean_hdi(mu_at_50[, 1], .width = .95)
+
+# Plot it
+mu_at_50 %>%
+    ggplot(aes(mu_at_50)) +
+        geom_density(fill = '#999999') +
+        stat_pointintervalh(
+            aes(y = 0),
+            point_interval = mode_hdi, 
+            .width = .95
+        ) +
+        labs(
+            x = 'Mean Height | weight = 50'
+        )
+
+# Extract model's fitted values
+mu <- fitted(b4_3, summary= FALSE)
+
+weight_seq <- tibble(
+    weight = seq(25, 70, by = 1)
+)
+
+mu <- fitted(
+        b4_3,
+        summary = FALSE,
+        newdata = weight_seq
+    ) %>%
+    as_tibble() %>%
+    set_names(25:70) %>%
+    mutate(iter = 1:n()) %>%
+    gather(weight, height, -iter) %>%
+    mutate(weight = as.numeric(weight))
+
+dat2 %>% 
+    ggplot(aes(weight, height)) +
+    geom_point(
+        data = mu %>% filter(iter < 101),
+        alpha = 1/10
+    )
+
+# Plot a regression line with interval
+mu_summary <- b4_3 %>%
+    fitted(
+        newdata = weight_seq
+    ) %>%
+    as_tibble() %>%
+    bind_cols(weight_seq)
+
+dat2 %>%
+    ggplot(aes(weight, height)) +
+        geom_smooth(
+            data = mu_summary,
+            aes(
+                y = Estimate, 
+                ymin = Q2.5,
+                ymax = Q97.5
+            ),
+            stat = 'identity',
+            fill = 'grey70',
+            color = 'black', 
+            alpha = 1, 
+            size = 1/2
+        ) +
+        geom_point(alpha = 1/2) 
+
+# Predictions intervals (incorporates standard deviation)
+# The summary information in our data frame is for “simulated heights, 
+# not distributions of plausible average height." These simulations 
+# are the joint consequence of both μ and σ, unlike the results of 
+# fitted(), which only reflect μ.
+pred_height <- b4_3 %>%
+    predict(newdata = weight_seq) %>%
+    as_tibble() %>%
+    bind_cols(weight_seq)
+
+dat2 %>%
+    ggplot(aes(weight)) +
+        geom_ribbon(
+            data = pred_height,
+            aes(
+                ymin = Q2.5,
+                ymax = Q97.5
+            ),
+            fill = 'grey83',
+            alpha = 1/2
+        ) +
+        geom_smooth(
+            data = mu_summary,
+            aes(
+                y = Estimate,
+                ymin = Q2.5,
+                ymax = Q97.5
+            ),
+            stat = 'identity',
+            fill = 'grey70',
+            color = 'black', 
+            size = 1/2
+        ) + 
+        geom_point(
+            aes(y = height)
+        )
