@@ -1,7 +1,7 @@
 require(tidyverse)
 require(brms)
 require(tidybayes)
-
+require(ggthemes)
 set.seed(4)
 
 # Generate data for random walk
@@ -21,8 +21,21 @@ pos <-
 # Plot it
 pos %>%
     ggplot(aes(step, position, group = person)) +
-    geom_line(aes(color = person < 2, alpha = person < 2)) +
-    scale_color_manual(values = c('skyblue4', 'black')) +
-    scale_alpha_manual(values = c(1/5, 1)) +
-    theme(legend.position = 'none')
-    
+        geom_line(aes(color = person < 2, alpha = person < 2)) +
+        scale_color_manual(values = c('skyblue4', 'black')) +
+        scale_alpha_manual(values = c(1/5, 1)) +
+        theme_tufte(
+            base_family = 'Gill Sans',
+            base_size = 16
+        ) +
+        theme(legend.position = 'none') +
+        labs(
+            x = 'Step',
+            y = 'Position'
+        )
+
+ggsave(
+    file = '~/dev/rethinking/plots/random-walk.png',
+    height = 6,
+    width = 6 * 1.618
+)        

@@ -83,8 +83,17 @@ dat2 %>%
             xlim = range(dat2$weight),
             ylim = range(dat2$height)
         ) +
-        theme_tufte(base_family = 'Gill Sans') +
+        theme_tufte(
+            base_family = 'Gill Sans',
+            base_size = 16
+        ) +
         labs(
             x = 'Weight',
             y = 'Height'
         )
+
+ggsave(
+    file = '~/dev/rethinking/plots/linear-model.png',
+    height = 6,
+    width = 6 * 1.618
+)
