@@ -1,16 +1,10 @@
-require(rethinking)
-data(Howell1)
+require(tidyverse)
+require(tidybayes)
+require(brms)
 set.seed(4)
 
 # Load data
-dat <- Howell1
-
-# Swap brms package for rethinking
-rm(Howell1)
-detach(package:rethinking, unload = TRUE)
-require(brms)
-require(tidyverse)
-require(tidybayes)
+dat <- read.csv(file = '~/dev/rethinking/data/height-vs-weight.csv')
 
 # Filter for adults
 dat2 <- dat %>% filter(age >= 18)
